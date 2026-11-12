@@ -1,0 +1,26 @@
+[Unit]
+Description=3D Printer Remote Monitor Client (Raspberry Pi 3B Dual UVC)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kucet
+Group=kucet
+WorkingDirectory=/home/kucet/printer_monitor/pi_client
+Environment="PYTHONUNBUFFERED=1"
+Environment="PC_SERVER_URL=http://192.168.1.107:8000"
+Environment="CAPTURE_WIDTH=1920"
+Environment="CAPTURE_HEIGHT=1080"
+Environment="JPEG_QUALITY=85"
+ExecStart=/home/kucet/printer_monitor/venv/bin/python printer_monitor_client.py
+Restart=always
+RestartSec=5s
+
+# Memory and Resource Protections for 1 GB RAM Pi 3B
+MemoryHigh=250M
+MemoryMax=350M
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

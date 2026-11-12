@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Printer Monitoring Hub | Dual Vision & Thermal Telemetry</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="top-nav">
+    <div class="brand">
+      <div class="logo-icon">🖨️</div>
+      <div>
+        <h1>3D PRINTER TELEMETRY HUB</h1>
+        <span class="subtitle">Raspberry Pi 3B Dual UVC + ESP32-S3 MLX90640</span>
+      </div>
+    </div>
+    
+    <div class="system-status-pills">
+      <div id="pill-pi" class="status-pill offline">
+        <span class="indicator-dot"></span>
+        <span>PI 3B CLIENT</span>
+      </div>
+      <div id="pill-thermal" class="status-pill offline">
+        <span class="indicator-dot"></span>
+        <span>ESP32 THERMAL</span>
+      </div>
+      <div id="alarm-banner" class="alarm-pill normal">
+        <span id="alarm-icon">🛡️</span>
+        <span id="alarm-text">TEMP NORMAL</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid Dashboard -->
+  <main class="dashboard-grid">
+    <!-- Camera 1: 12 MP Bed View -->
+    <section class="card camera-card">
+      <div class="card-header">
+        <div class="title-wrap">
+          <span class="cam-badge">CAM 1</span>
+          <h2>UC-726 12 MP (Bed Wide View)</h2>
+        </div>
+        <span id="cam1-meta" class="meta-tag">1920x1080 | Waiting...</span>
+      </div>
+      <div class="viewport-box">
+        <img id="cam1-img" src="/static/placeholder_cam.svg" alt="Camera 1 View">
+        <div class="viewport-overlay">
+          <span id="cam1-timestamp" class="ts-badge">--:--:--</span>
+          <span id="cam1-fps" class="fps-badge">Staggered: t = 0.0s</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Camera 2: 16 MP Toolhead View -->
+    <section class="card camera-card">
+      <div class="card-header">
+        <div class="title-wrap">
+          <span class="cam-badge secondary">CAM 2</span>
+          <h2>UC-726 16 MP (Toolhead / Nozzle)</h2>
+        </div>
+        <span id="cam2-meta" class="meta-tag">1920x1080 | Waiting...</span>
+      </div>
+      <div class="viewport-box">
+        <img id="cam2-img" src="/static/placeholder_cam.svg" alt="Camera 2 View">
+        <div class="viewport-overlay">
+          <span id="cam2-timestamp" class="ts-badge">--:--:--</span>
+          <span id="cam2-fps" class="fps-badge">Staggered: t = 1.0s</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Thermal IR Array: MLX90640 (32x24) -->
+    <section class="card thermal-card">
+      <div class="card-header">
+        <div class="title-wrap">
+          <span class="cam-badge thermal">IR ARRAY</span>
+          <h2>MLX90640 (32x24 Thermal Sensor)</h2>
+        </div>
+        <span id="thermal-meta" class="meta-tag">I2C Fast Mode (400kHz)</span>
+      </div>
+      
+      <div class="thermal-container">
+        <div class="canvas-wrapper">
+          <canvas id="thermal-canvas" width="320" height="240"></canvas>
+          <div id="thermal-tooltip" class="thermal-tooltip">Hover over pixel</div>
+          <div class="crosshair-center" title="Sensor Center Point"></div>
+        </div>
+
+        <div class="thermal-telemetry-col">
+          <div class="temp-readout max-temp">
+            <span class="label">HOT SPOT (MAX)</span>
+            <span id="temp-max-val" class="val">--.- °C</span>
+          </div>
+          <div class="temp-readout center-temp">
+            <span class="label">CENTER TARGET</span>
+            <span id="temp-center-val" class="val">--.- °C</span>
+          </div>
+          <div class="temp-readout min-temp">
+            <span class="label">COOL SPOT (MIN)</span>
+            <span id="temp-min-val" class="val">--.- °C</span>
+          </div>
+          
+          <div class="color-scale-bar">
+            <span class="scale-label-min" id="scale-min">0°C</span>
+            <div class="ironbow-gradient"></div>
+            <span class="scale-label-max" id="scale-max">300°C</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Remote Controls & Diagnostics Panel -->
+    <section class="card control-card">
+      <div class="card-header">
+        <h2>Remote Edge Node Controls</h2>
+        <span class="meta-tag">Bidirectional API</span>
+      </div>
+
+      <div class="controls-content">
+        <!-- Interval slider -->
+        <div class="control-row">
+          <label for="interval-slider">
+            <strong>Capture Loop Interval:</strong>
+            <span id="interval-display" class="highlight-val">3.0 s</span>
+          </label>
+          <div class="slider-wrap">
+            <input type="range" id="interval-slider" min="1.0" max="30.0" step="0.5" value="3.0">
+          </div>
+          <p class="hint">Staggers Cam 1 at 0.0s, Cam 2 at 1.0s, and Thermal at 2.0s to respect USB 2.0 480 Mbps bus limit.</p>
+        </div>
+
+        <!-- Alert Threshold -->
+        <div class="control-row">
+          <label for="threshold-input">
+            <strong>Max Thermal Alert Threshold:</strong>
+            <span id="threshold-display" class="highlight-val">275.0 °C</span>
+          </label>
+          <div class="input-inline">
+            <input type="number" id="threshold-input" min="40" max="350" step="5" value="275">
+            <button id="btn-set-threshold" class="btn btn-secondary">Apply Limit</button>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons-group">
+          <button id="btn-toggle-pause" class="btn btn-warning">⏸ Pause Capture</button>
+          <button id="btn-trigger-snapshot" class="btn btn-primary">📸 Trigger Snapshot Now</button>
+        </div>
+
+        <!-- Node Status Diagnostics -->
+        <div class="diagnostics-box">
+          <h3>Edge Node Telemetry & Zero SD-Wear Status</h3>
+          <div class="diag-grid">
+            <div>
+              <span class="diag-label">Pi 3B RAM Strategy:</span>
+              <span class="diag-val success">Direct In-Memory POST (0 SD Wear)</span>
+            </div>
+            <div>
+              <span class="diag-label">USB 2.0 Bus Mode:</span>
+              <span class="diag-val success">MJPEG Staggered (480 Mbps Guard)</span>
+            </div>
+            <div>
+              <span class="diag-label">Cam 1 Frames:</span>
+              <span id="diag-cam1-count" class="diag-val">0</span>
+            </div>
+            <div>
+              <span class="diag-label">Cam 2 Frames:</span>
+              <span id="diag-cam2-count" class="diag-val">0</span>
+            </div>
+            <div>
+              <span class="diag-label">Thermal Packets:</span>
+              <span id="diag-thermal-count" class="diag-val">0</span>
+            </div>
+            <div>
+              <span class="diag-label">Pi Last Seen:</span>
+              <span id="diag-pi-ping" class="diag-val">Never</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
